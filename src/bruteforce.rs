@@ -1,15 +1,15 @@
-use crate::models::*;
-use crate::dictionary::DictionaryGenerator;
 use crate::analyzer::parse_jwt;
+use crate::dictionary::DictionaryGenerator;
+use crate::models::*;
 use anyhow::Result;
-use base64::{engine::general_purpose, Engine as _};
-use hmac::{Hmac, Mac};
-use sha2::{Sha256, Sha384, Sha512};
-use sha1::Sha1;
-use std::time::Instant;
+use base64::{Engine as _, engine::general_purpose};
+use hmac::{Hmac, KeyInit, Mac};
 use rayon::prelude::*;
-use std::sync::atomic::{AtomicU64, Ordering};
+use sha1::Sha1;
+use sha2::{Sha256, Sha384, Sha512};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::time::Instant;
 
 type HmacSha256 = Hmac<Sha256>;
 type HmacSha384 = Hmac<Sha384>;

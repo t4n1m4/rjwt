@@ -1,6 +1,6 @@
 use crate::models::*;
-use anyhow::{anyhow, Result};
-use base64::{engine::general_purpose, Engine as _};
+use anyhow::{Result, anyhow};
+use base64::{Engine as _, engine::general_purpose};
 use chrono::Utc;
 
 /// 解码 base64url（不含padding）
@@ -18,16 +18,18 @@ fn b64url_decode(input: &str) -> Result<Vec<u8>> {
 pub fn parse_jwt(token: &str) -> Result<ParsedJwt> {
     let parts: Vec<&str> = token.splitn(3, '.').collect();
     if parts.len() != 3 {
-        return Err(anyhow!("无效的JWT格式：需要三段（header.payload.signature）"));
+        return Err(anyhow!(
+            "无效的JWT格式：需要三段（header.payload.signature）"
+        ));
     }
 
     let header_bytes = b64url_decode(parts[0])?;
     let payload_bytes = b64url_decode(parts[1])?;
 
-    let header: JwtHeader = serde_json::from_slice(&header_bytes)
-        .map_err(|e| anyhow!("Header解析失败: {}", e))?;
-    let payload: JwtPayload = serde_json::from_slice(&payload_bytes)
-        .map_err(|e| anyhow!("Payload解析失败: {}", e))?;
+    let header: JwtHeader =
+        serde_json::from_slice(&header_bytes).map_err(|e| anyhow!("Header解析失败: {}", e))?;
+    let payload: JwtPayload =
+        serde_json::from_slice(&payload_bytes).map_err(|e| anyhow!("Payload解析失败: {}", e))?;
 
     let sig_bytes = b64url_decode(parts[2]).unwrap_or_default();
 
@@ -96,7 +98,10 @@ fn detect_vulnerabilities(parsed: &ParsedJwt, now: i64) -> Vec<VulnFinding> {
             severity: Severity::Critical,
             description: "JWT使用alg=none，服务端若不验证算法类型将完全跳过签名校验".to_string(),
             evidence: Some(format!("alg: {}", parsed.header.alg)),
-            exploit_hint: Some("将header中alg改为none/None/NONE，去掉签名段，服务端可能接受任意payload".to_string()),
+            exploit_hint: Some(
+                "将header中alg改为none/None/NONE，去掉签名段，服务端可能接受任意payload"
+                    .to_string(),
+            ),
         });
     }
 
@@ -118,9 +123,13 @@ fn detect_vulnerabilities(parsed: &ParsedJwt, now: i64) -> Vec<VulnFinding> {
             id: "JWT-003".to_string(),
             name: "算法混淆攻击 (RS/ES → HS)".to_string(),
             severity: Severity::High,
-            description: "若服务端未强制校验算法类型，可将alg从RS256改为HS256，用公钥作为HMAC密钥伪造签名".to_string(),
+            description:
+                "若服务端未强制校验算法类型，可将alg从RS256改为HS256，用公钥作为HMAC密钥伪造签名"
+                    .to_string(),
             evidence: Some(format!("当前alg: {}", parsed.header.alg)),
-            exploit_hint: Some("获取服务端公钥，将alg改为HS256，用公钥内容作为HMAC secret重新签名".to_string()),
+            exploit_hint: Some(
+                "获取服务端公钥，将alg改为HS256，用公钥内容作为HMAC secret重新签名".to_string(),
+            ),
         });
     }
 
@@ -131,7 +140,8 @@ fn detect_vulnerabilities(parsed: &ParsedJwt, now: i64) -> Vec<VulnFinding> {
                 id: "JWT-004".to_string(),
                 name: "kid路径遍历注入".to_string(),
                 severity: Severity::High,
-                description: "kid字段包含路径遍历字符，服务端若直接用kid读取密钥文件则存在路径遍历".to_string(),
+                description: "kid字段包含路径遍历字符，服务端若直接用kid读取密钥文件则存在路径遍历"
+                    .to_string(),
                 evidence: Some(format!("kid: {}", kid)),
                 exploit_hint: Some("尝试kid=../../dev/null使密钥为空，或指向可控文件".to_string()),
             });
@@ -141,9 +151,12 @@ fn detect_vulnerabilities(parsed: &ParsedJwt, now: i64) -> Vec<VulnFinding> {
                 id: "JWT-005".to_string(),
                 name: "kid SQL注入风险".to_string(),
                 severity: Severity::Critical,
-                description: "kid字段包含SQL关键字或引号，服务端若将kid拼入SQL查询则存在注入".to_string(),
+                description: "kid字段包含SQL关键字或引号，服务端若将kid拼入SQL查询则存在注入"
+                    .to_string(),
                 evidence: Some(format!("kid: {}", kid)),
-                exploit_hint: Some("尝试kid=' UNION SELECT 'secret'-- 使服务端使用可控密钥".to_string()),
+                exploit_hint: Some(
+                    "尝试kid=' UNION SELECT 'secret'-- 使服务端使用可控密钥".to_string(),
+                ),
             });
         }
     }
@@ -233,10 +246,18 @@ fn generate_recommendations(findings: &[VulnFinding], summary: &TokenSummary) ->
     for f in findings {
         match f.id.as_str() {
             "JWT-001" => recs.push("服务端必须强制校验alg字段，拒绝alg=none的Token".to_string()),
-            "JWT-002" => recs.push("使用长度≥32字节的随机密钥，避免使用单词、项目名等弱密钥".to_string()),
-            "JWT-003" => recs.push("服务端应硬编码期望的算法类型，不信任Header中的alg字段".to_string()),
-            "JWT-004" | "JWT-005" => recs.push("对kid字段进行严格验证，不直接拼接到文件路径或SQL中".to_string()),
-            "JWT-006" | "JWT-007" => recs.push("限制jku/x5u只允许白名单域名，或完全禁用这些字段".to_string()),
+            "JWT-002" => {
+                recs.push("使用长度≥32字节的随机密钥，避免使用单词、项目名等弱密钥".to_string())
+            }
+            "JWT-003" => {
+                recs.push("服务端应硬编码期望的算法类型，不信任Header中的alg字段".to_string())
+            }
+            "JWT-004" | "JWT-005" => {
+                recs.push("对kid字段进行严格验证，不直接拼接到文件路径或SQL中".to_string())
+            }
+            "JWT-006" | "JWT-007" => {
+                recs.push("限制jku/x5u只允许白名单域名，或完全禁用这些字段".to_string())
+            }
             "JWT-008" => recs.push("始终设置exp字段，建议有效期不超过1小时".to_string()),
             _ => {}
         }

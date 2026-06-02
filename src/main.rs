@@ -77,9 +77,23 @@ async fn main() {
     match cli.command {
         Commands::Parse { token, json } => cmd_parse(&token, json),
         Commands::Analyze { token, json } => cmd_analyze(&token, json),
-        Commands::Brute { token, wordlist, builtin } => cmd_brute(&token, wordlist, builtin),
-        Commands::Forge { token, secret, alg, payload } => cmd_forge(&token, &secret, alg, payload),
-        Commands::Probe { url, token, method, placement } => cmd_probe(&url, &token, &method, &placement),
+        Commands::Brute {
+            token,
+            wordlist,
+            builtin,
+        } => cmd_brute(&token, wordlist, builtin),
+        Commands::Forge {
+            token,
+            secret,
+            alg,
+            payload,
+        } => cmd_forge(&token, &secret, alg, payload),
+        Commands::Probe {
+            url,
+            token,
+            method,
+            placement,
+        } => cmd_probe(&url, &token, &method, &placement),
         Commands::Serve { host, port } => cmd_serve(&host, port).await,
     }
 }
@@ -91,7 +105,10 @@ fn print_banner() {
     println!("{}", "  ██╔══██╗██   ██║██║███╗██║   ██║   ".bright_cyan());
     println!("{}", "  ██║  ██║╚█████╔╝╚███╔███╔╝   ██║   ".bright_cyan());
     println!("{}", "  ╚═╝  ╚═╝ ╚════╝  ╚══╝╚══╝    ╚═╝   ".bright_cyan());
-    println!("{}\n", "    JWT Security Analysis Tool v0.1.0 | 仅用于授权测试".bright_black());
+    println!(
+        "{}\n",
+        "    JWT Security Analysis Tool v0.1.0 | 仅用于授权测试".bright_black()
+    );
 }
 
 fn cmd_parse(token: &str, as_json: bool) {
@@ -104,18 +121,30 @@ fn cmd_parse(token: &str, as_json: bool) {
             println!("{}", "=== JWT 结构解析 ===".bright_yellow().bold());
             println!("{}", "[ Header ]".bright_blue());
             println!("  算法 (alg): {}", parsed.header.alg.bright_white());
-            if let Some(typ) = &parsed.header.typ { println!("  类型 (typ): {}", typ); }
-            if let Some(kid) = &parsed.header.kid { println!("  密钥ID (kid): {}", kid.yellow()); }
-            if let Some(jku) = &parsed.header.jku { println!("  密钥URL (jku): {}", jku.red()); }
+            if let Some(typ) = &parsed.header.typ {
+                println!("  类型 (typ): {}", typ);
+            }
+            if let Some(kid) = &parsed.header.kid {
+                println!("  密钥ID (kid): {}", kid.yellow());
+            }
+            if let Some(jku) = &parsed.header.jku {
+                println!("  密钥URL (jku): {}", jku.red());
+            }
             println!("{}", "[ Payload ]".bright_blue());
-            if let Some(sub) = &parsed.payload.sub { println!("  主体 (sub): {}", sub.bright_white()); }
-            if let Some(iss) = &parsed.payload.iss { println!("  签发者 (iss): {}", iss); }
+            if let Some(sub) = &parsed.payload.sub {
+                println!("  主体 (sub): {}", sub.bright_white());
+            }
+            if let Some(iss) = &parsed.payload.iss {
+                println!("  签发者 (iss): {}", iss);
+            }
             if let Some(exp) = parsed.payload.exp {
                 println!("  过期时间 (exp): {}", exp);
             } else {
                 println!("  过期时间 (exp): {}", "未设置".red());
             }
-            if let Some(iat) = parsed.payload.iat { println!("  签发时间 (iat): {}", iat); }
+            if let Some(iat) = parsed.payload.iat {
+                println!("  签发时间 (iat): {}", iat);
+            }
             println!("{}", "[ 自定义Claims ]".bright_blue());
             for (k, v) in &parsed.payload.claims {
                 println!("  {}: {}", k, v);
@@ -139,19 +168,22 @@ fn cmd_analyze(token: &str, as_json: bool) {
             println!("{}", "=== JWT 安全分析报告 ===".bright_yellow().bold());
             let risk_str = match &report.risk_level {
                 RiskLevel::Critical => "🔴 严重 (CRITICAL)".red().bold().to_string(),
-                RiskLevel::High     => "🟠 高危 (HIGH)".bright_red().to_string(),
-                RiskLevel::Medium   => "🟡 中危 (MEDIUM)".yellow().to_string(),
-                RiskLevel::Low      => "🔵 低危 (LOW)".blue().to_string(),
-                RiskLevel::Safe     => "🟢 安全 (SAFE)".green().to_string(),
+                RiskLevel::High => "🟠 高危 (HIGH)".bright_red().to_string(),
+                RiskLevel::Medium => "🟡 中危 (MEDIUM)".yellow().to_string(),
+                RiskLevel::Low => "🔵 低危 (LOW)".blue().to_string(),
+                RiskLevel::Safe => "🟢 安全 (SAFE)".green().to_string(),
             };
             println!("\n  综合风险等级: {}", risk_str);
             println!("\n{}", "[ Token摘要 ]".bright_blue());
             println!("  算法: {}", report.token_summary.algorithm.bright_white());
-            println!("  过期状态: {}", if report.token_summary.is_expired {
-                report.token_summary.expiry_info.red().to_string()
-            } else {
-                report.token_summary.expiry_info.green().to_string()
-            });
+            println!(
+                "  过期状态: {}",
+                if report.token_summary.is_expired {
+                    report.token_summary.expiry_info.red().to_string()
+                } else {
+                    report.token_summary.expiry_info.green().to_string()
+                }
+            );
             println!("\n{}", "[ 发现的漏洞/风险 ]".bright_blue());
             if report.vulnerabilities.is_empty() {
                 println!("  {}", "未发现明显漏洞".green());
@@ -159,15 +191,24 @@ fn cmd_analyze(token: &str, as_json: bool) {
                 for vuln in &report.vulnerabilities {
                     let sev = match vuln.severity {
                         Severity::Critical => "[严重]".red().bold().to_string(),
-                        Severity::High     => "[高危]".bright_red().to_string(),
-                        Severity::Medium   => "[中危]".yellow().to_string(),
-                        Severity::Low      => "[低危]".blue().to_string(),
-                        Severity::Info     => "[信息]".white().to_string(),
+                        Severity::High => "[高危]".bright_red().to_string(),
+                        Severity::Medium => "[中危]".yellow().to_string(),
+                        Severity::Low => "[低危]".blue().to_string(),
+                        Severity::Info => "[信息]".white().to_string(),
                     };
-                    println!("\n  {} {} - {}", sev, vuln.id.bright_white(), vuln.name.bold());
+                    println!(
+                        "\n  {} {} - {}",
+                        sev,
+                        vuln.id.bright_white(),
+                        vuln.name.bold()
+                    );
                     println!("     描述: {}", vuln.description);
-                    if let Some(ev) = &vuln.evidence { println!("     证据: {}", ev.yellow()); }
-                    if let Some(hint) = &vuln.exploit_hint { println!("     利用提示: {}", hint.cyan()); }
+                    if let Some(ev) = &vuln.evidence {
+                        println!("     证据: {}", ev.yellow());
+                    }
+                    if let Some(hint) = &vuln.exploit_hint {
+                        println!("     利用提示: {}", hint.cyan());
+                    }
                 }
             }
             println!("\n{}", "[ 修复建议 ]".bright_blue());
@@ -184,17 +225,30 @@ fn cmd_brute(token: &str, wordlist_path: Option<String>, use_builtin: bool) {
     let custom_words: Option<Vec<String>> = wordlist_path.map(|path| {
         std::fs::read_to_string(&path)
             .map(|c| c.lines().map(String::from).collect())
-            .unwrap_or_else(|e| { eprintln!("读取字典失败: {}", e); vec![] })
+            .unwrap_or_else(|e| {
+                eprintln!("读取字典失败: {}", e);
+                vec![]
+            })
     });
-    if use_builtin { println!("  使用内置弱密钥字典 + 动态扩展"); }
+    if use_builtin {
+        println!("  使用内置弱密钥字典 + 动态扩展");
+    }
     println!("  {} 开始并行爆破...\n", "►".bright_cyan());
     match bruteforce(token, custom_words, use_builtin) {
         Ok(result) => {
             println!("  尝试次数: {}", result.attempts.to_string().bright_white());
             println!("  耗时: {} ms", result.duration_ms);
             if result.success {
-                println!("\n  {} 找到密钥: {}", "✓".bright_green().bold(),
-                    result.found_secret.as_deref().unwrap_or("").bright_green().bold());
+                println!(
+                    "\n  {} 找到密钥: {}",
+                    "✓".bright_green().bold(),
+                    result
+                        .found_secret
+                        .as_deref()
+                        .unwrap_or("")
+                        .bright_green()
+                        .bold()
+                );
             } else {
                 println!("\n  {} 未找到弱密钥（可使用 -w 指定自定义字典）", "✗".red());
             }
@@ -208,12 +262,18 @@ fn cmd_forge(token: &str, secret: &str, alg: Option<String>, payload: Option<Str
     let claims: serde_json::Value = if let Some(p) = payload {
         match serde_json::from_str(&p) {
             Ok(v) => v,
-            Err(e) => { eprintln!("Payload JSON解析失败: {}", e); return; }
+            Err(e) => {
+                eprintln!("Payload JSON解析失败: {}", e);
+                return;
+            }
         }
     } else {
         match parse_jwt(token) {
             Ok(p) => serde_json::to_value(&p.payload).unwrap_or_default(),
-            Err(e) => { eprintln!("解析原始Token失败: {}", e); return; }
+            Err(e) => {
+                eprintln!("解析原始Token失败: {}", e);
+                return;
+            }
         }
     };
     let alg_str = alg.as_deref();
@@ -230,7 +290,11 @@ fn cmd_forge(token: &str, secret: &str, alg: Option<String>, payload: Option<Str
     } else {
         match forge_token(token, &claims, secret, alg_str) {
             Ok(forged) => {
-                println!("  {} 伪造Token:\n\n  {}", "✓".bright_green(), forged.bright_white());
+                println!(
+                    "  {} 伪造Token:\n\n  {}",
+                    "✓".bright_green(),
+                    forged.bright_white()
+                );
             }
             Err(e) => eprintln!("伪造失败: {}", e),
         }
@@ -261,14 +325,22 @@ fn cmd_probe(url: &str, token: &str, method: &str, placement: &str) {
     };
     match send_request(&req) {
         Ok(resp) => {
-            let sc = if resp.status < 300 { resp.status.to_string().green().to_string() }
-                     else if resp.status < 400 { resp.status.to_string().yellow().to_string() }
-                     else { resp.status.to_string().red().to_string() };
+            let sc = if resp.status < 300 {
+                resp.status.to_string().green().to_string()
+            } else if resp.status < 400 {
+                resp.status.to_string().yellow().to_string()
+            } else {
+                resp.status.to_string().red().to_string()
+            };
             println!("  响应状态: {}", sc);
             let preview = &resp.body[..resp.body.len().min(512)];
             println!("  响应体:\n{}", preview);
             if let Some(jwt) = resp.jwt_in_response {
-                println!("\n  {} 响应中发现JWT: {}...", "★".bright_yellow(), &jwt[..jwt.len().min(60)]);
+                println!(
+                    "\n  {} 响应中发现JWT: {}...",
+                    "★".bright_yellow(),
+                    &jwt[..jwt.len().min(60)]
+                );
             }
         }
         Err(e) => eprintln!("请求失败: {}", e),
@@ -276,16 +348,14 @@ fn cmd_probe(url: &str, token: &str, method: &str, placement: &str) {
 }
 
 async fn cmd_serve(host: &str, port: u16) {
-    let addr: std::net::SocketAddr = format!("{}:{}", host, port)
-        .parse()
-        .expect("地址解析失败");
+    let addr = format!("{}:{}", host, port);
     println!("{}", "=== rjwt Agent API 服务 ===".bright_yellow().bold());
-    println!("  监听: {}", addr.to_string().bright_white());
+    println!("  监听: {}", addr.bright_white());
     println!("  统一Agent接口: POST http://{}/api/agent", addr);
     println!("  健康检查:      GET  http://{}/health\n", addr);
     let router = rjwt::api::build_router();
-    axum::Server::bind(&addr)
-        .serve(router.into_make_service())
+    let listener = tokio::net::TcpListener::bind(&addr)
         .await
-        .expect("服务运行失败");
+        .expect("端口绑定失败");
+    axum::serve(listener, router).await.expect("服务运行失败");
 }

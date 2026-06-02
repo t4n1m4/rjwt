@@ -137,12 +137,29 @@ pub struct AgentRequest {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum AgentAction {
-    Parse { token: String },
-    Analyze { token: String },
-    Bruteforce { token: String, wordlist: Option<Vec<String>>, use_builtin: Option<bool> },
-    CheckVulns { token: String },
-    Forge { original_token: String, new_claims: HashMap<String, serde_json::Value>, secret: Option<String>, alg: Option<String> },
-    HttpProbe { request: HttpRequest },
+    Parse {
+        token: String,
+    },
+    Analyze {
+        token: String,
+    },
+    Bruteforce {
+        token: String,
+        wordlist: Option<Vec<String>>,
+        use_builtin: Option<bool>,
+    },
+    CheckVulns {
+        token: String,
+    },
+    Forge {
+        original_token: String,
+        new_claims: HashMap<String, serde_json::Value>,
+        secret: Option<String>,
+        alg: Option<String>,
+    },
+    HttpProbe {
+        request: HttpRequest,
+    },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

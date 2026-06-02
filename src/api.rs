@@ -1,15 +1,15 @@
-use crate::models::*;
-use crate::analyzer::{parse_jwt, analyze_jwt};
+use crate::analyzer::{analyze_jwt, parse_jwt};
 use crate::bruteforce::{bruteforce, forge_token};
 use crate::http_client::send_request;
+use crate::models::*;
 use axum::{
+    Router,
     extract::Json,
     http::StatusCode,
     response::IntoResponse,
     routing::{get, post},
-    Router,
 };
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use tower_http::cors::{Any, CorsLayer};
 
 pub fn build_router() -> Router {
@@ -81,9 +81,16 @@ async fn api_bruteforce(Json(body): Json<Value>) -> impl IntoResponse {
         Some(t) => t.to_string(),
         None => return err_response("缺少 token 字段"),
     };
-    let use_builtin = body.get("use_builtin").and_then(|v| v.as_bool()).unwrap_or(true);
+    let use_builtin = body
+        .get("use_builtin")
+        .and_then(|v| v.as_bool())
+        .unwrap_or(true);
     let wordlist: Option<Vec<String>> = body.get("wordlist").and_then(|v| {
-        v.as_array().map(|arr| arr.iter().filter_map(|i| i.as_str().map(String::from)).collect())
+        v.as_array().map(|arr| {
+            arr.iter()
+                .filter_map(|i| i.as_str().map(String::from))
+                .collect()
+        })
     });
 
     match bruteforce(&token, wordlist, use_builtin) {
@@ -101,11 +108,14 @@ async fn api_check_vulns(Json(body): Json<Value>) -> impl IntoResponse {
     match parse_jwt(&token) {
         Ok(parsed) => {
             let report = analyze_jwt(&parsed);
-            ok_response("vulns", json!({
-                "vulnerabilities": report.vulnerabilities,
-                "risk_level": report.risk_level,
-                "count": report.vulnerabilities.len()
-            }))
+            ok_response(
+                "vulns",
+                json!({
+                    "vulnerabilities": report.vulnerabilities,
+                    "risk_level": report.risk_level,
+                    "count": report.vulnerabilities.len()
+                }),
+            )
         }
         Err(e) => err_response(&e.to_string()),
     }
@@ -166,19 +176,19 @@ async fn api_probe(Json(body): Json<Value>) -> impl IntoResponse {
 /// 统一Agent接口（供AI Agent调用）
 async fn api_agent(Json(body): Json<AgentRequest>) -> impl IntoResponse {
     match &body.action {
-        AgentAction::Parse { token } => {
-            match parse_jwt(token) {
-                Ok(p) => ok_response("parse", json!(p)),
-                Err(e) => err_response(&e.to_string()),
-            }
-        }
-        AgentAction::Analyze { token } => {
-            match parse_jwt(token) {
-                Ok(p) => ok_response("analyze", json!(analyze_jwt(&p))),
-                Err(e) => err_response(&e.to_string()),
-            }
-        }
-        AgentAction::Bruteforce { token, wordlist, use_builtin } => {
+        AgentAction::Parse { token } => match parse_jwt(token) {
+            Ok(p) => ok_response("parse", json!(p)),
+            Err(e) => err_response(&e.to_string()),
+        },
+        AgentAction::Analyze { token } => match parse_jwt(token) {
+            Ok(p) => ok_response("analyze", json!(analyze_jwt(&p))),
+            Err(e) => err_response(&e.to_string()),
+        },
+        AgentAction::Bruteforce {
+            token,
+            wordlist,
+            use_builtin,
+        } => {
             let wl = wordlist.clone();
             let ub = use_builtin.unwrap_or(true);
             let tok = token.clone();
@@ -188,19 +198,23 @@ async fn api_agent(Json(body): Json<AgentRequest>) -> impl IntoResponse {
                 Err(e) => err_response(&e.to_string()),
             }
         }
-        AgentAction::CheckVulns { token } => {
-            match parse_jwt(token) {
-                Ok(p) => {
-                    let report = analyze_jwt(&p);
-                    ok_response("check_vulns", json!(report.vulnerabilities))
-                }
-                Err(e) => err_response(&e.to_string()),
+        AgentAction::CheckVulns { token } => match parse_jwt(token) {
+            Ok(p) => {
+                let report = analyze_jwt(&p);
+                ok_response("check_vulns", json!(report.vulnerabilities))
             }
-        }
-        AgentAction::Forge { original_token, new_claims, secret, alg } => {
+            Err(e) => err_response(&e.to_string()),
+        },
+        AgentAction::Forge {
+            original_token,
+            new_claims,
+            secret,
+            alg,
+        } => {
             let s = secret.as_deref().unwrap_or("");
             let a = alg.as_deref();
-            let claims_val = serde_json::to_value(new_claims).unwrap_or(Value::Object(Default::default()));
+            let claims_val =
+                serde_json::to_value(new_claims).unwrap_or(Value::Object(Default::default()));
             match forge_token(original_token, &claims_val, s, a) {
                 Ok(t) => ok_response("forge", json!({ "token": t })),
                 Err(e) => err_response(&e.to_string()),
@@ -220,25 +234,31 @@ async fn api_agent(Json(body): Json<AgentRequest>) -> impl IntoResponse {
 // ---- 辅助函数 ----
 
 fn ok_response(action: &str, data: Value) -> (StatusCode, Json<Value>) {
-    (StatusCode::OK, Json(json!({
-        "success": true,
-        "action": action,
-        "data": data,
-        "error": null
-    })))
+    (
+        StatusCode::OK,
+        Json(json!({
+            "success": true,
+            "action": action,
+            "data": data,
+            "error": null
+        })),
+    )
 }
 
 fn err_response(msg: &str) -> (StatusCode, Json<Value>) {
-    (StatusCode::BAD_REQUEST, Json(json!({
-        "success": false,
-        "action": "error",
-        "data": null,
-        "error": msg
-    })))
+    (
+        StatusCode::BAD_REQUEST,
+        Json(json!({
+            "success": false,
+            "action": "error",
+            "data": null,
+            "error": msg
+        })),
+    )
 }
 
 fn b64url_encode_val(val: &Value) -> String {
-    use base64::{engine::general_purpose, Engine as _};
+    use base64::{Engine as _, engine::general_purpose};
     let s = serde_json::to_string(val).unwrap_or_default();
     general_purpose::STANDARD
         .encode(s.as_bytes())
