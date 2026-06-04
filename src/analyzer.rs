@@ -15,11 +15,14 @@ fn b64url_decode(input: &str) -> Result<Vec<u8>> {
 }
 
 /// 将 JWT 字符串解析为 ParsedJwt
+///
+/// 支持完整的 JWT（header.payload.signature）以及缺少签名的 JWT（header.payload），
+/// 如 alg=none 攻击场景中不含签名段的 token。
 pub fn parse_jwt(token: &str) -> Result<ParsedJwt> {
     let parts: Vec<&str> = token.splitn(3, '.').collect();
-    if parts.len() != 3 {
+    if parts.len() < 2 {
         return Err(anyhow!(
-            "无效的JWT格式：需要三段（header.payload.signature）"
+            "无效的JWT格式：至少需要 header.payload 两段"
         ));
     }
 
@@ -31,13 +34,15 @@ pub fn parse_jwt(token: &str) -> Result<ParsedJwt> {
     let payload: JwtPayload =
         serde_json::from_slice(&payload_bytes).map_err(|e| anyhow!("Payload解析失败: {}", e))?;
 
-    let sig_bytes = b64url_decode(parts[2]).unwrap_or_default();
+    // parts.len() == 2 时签名段为空（如 alg=none 的 JWT）
+    let signature_b64 = parts.get(2).copied().unwrap_or("").to_string();
+    let sig_bytes = b64url_decode(&signature_b64).unwrap_or_default();
 
     Ok(ParsedJwt {
         raw: RawJwt {
             header_b64: parts[0].to_string(),
             payload_b64: parts[1].to_string(),
-            signature_b64: parts[2].to_string(),
+            signature_b64,
         },
         header,
         payload,
